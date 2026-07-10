@@ -22,25 +22,29 @@ def process_names(contact):
     
     return names + contact[3:]
 
-# Функция для обработки телефонов
+# Функция для обработки телефонов (ИСПРАВЛЕННАЯ)
 def process_phone(phone):
     """Обработка телефона с помощью регулярных выражений"""
     if not phone:
         return ""
     
-    # Ищем добавочный номер
-    ext_match = re.search(r'доб\.?\s*(\d+)', phone, re.IGNORECASE)
-    ext = f" доб.{ext_match.group(1)}" if ext_match else ""
+    # Отделяем добавочный номер
+    ext = ""
+    phone_without_ext = phone
     
-    # Извлекаем все цифры
-    digits = re.sub(r'\D', '', phone)
+    ext_match = re.search(r'доб\.?\s*(\d+)', phone, re.IGNORECASE)
+    if ext_match:
+        ext = f" доб.{ext_match.group(1)}"
+        # Удаляем часть с добавочным номером из строки
+        phone_without_ext = re.sub(r'доб\.?\s*\d+', '', phone, flags=re.IGNORECASE)
+    
+    # Извлекаем все цифры из основного номера
+    digits = re.sub(r'\D', '', phone_without_ext)
     
     # Форматируем номер
     if len(digits) >= 10:
         # Берем последние 10 цифр для основного номера
         main_digits = digits[-10:]
-        if len(digits) > 10 and digits[-11] == '8' or digits[-11] == '7':
-            main_digits = digits[-10:]
         formatted = f"+7({main_digits[:3]}){main_digits[3:6]}-{main_digits[6:8]}-{main_digits[8:]}"
         return formatted + ext
     else:
