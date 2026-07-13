@@ -28,28 +28,52 @@ def process_phone(phone):
     if not phone:
         return ""
     
-    # Отделяем добавочный номер
+    # Ищем добавочный номер в ЛЮБОМ виде
     ext = ""
     phone_without_ext = phone
     
-    ext_match = re.search(r'доб\.?\s*(\d+)', phone, re.IGNORECASE)
-    if ext_match:
-        ext = f" доб.{ext_match.group(1)}"
-        # Удаляем часть с добавочным номером из строки
-        phone_without_ext = re.sub(r'доб\.?\s*\d+', '', phone, flags=re.IGNORECASE)
+    # Расширенный поиск добавочного номера
+    ext_patterns = [
+        r'(доб\.?\s*)(\d+)',  # доб.1234 или доб 1234
+        r'(д\.?\s*)(\d+)',    # д.1234 или д 1234
+        r'(ext\.?\s*)(\d+)',  # ext.1234
+        r'(\d+)(?=\s*$)'      # цифры в конце строки (может быть добавочный)
+    ]
     
-    # Извлекаем все цифры из основного номера
-    digits = re.sub(r'\D', '', phone_without_ext)
+    for pattern in ext_patterns:
+        ext_match = re.search(pattern, phone, re.IGNORECASE)
+        if ext_match:
+            # Если это последний паттерн - проверяем, что это действительно добавочный
+            if pattern == r'(\d+)(?=\s*$)' and len(ext_match.group(1)) <= 4:
+                ext = f" доб.{ext_match.group(1)}"
+                # Удаляем эти цифры из конца строки
+                phone_without_ext = re.sub(r'\d+\s*$', '', phone)
+                break
+            elif pattern != r'(\d+)(?=\s*$)':
+                ext = f" доб.{ext_match.group(2)}"
+                # Удаляем ВСЮ часть с добавочным номером
+                phone_without_ext = re.sub(r'[\s,\(\)]*доб\.?\s*\d+|[\s,\(\)]*д\.?\s*\d+|[\s,\(\)]*ext\.?\s*\d+', '', phone, flags=re.IGNORECASE)
+                break
+    
+    # Извлекаем ВСЕ цифры из оставшейся части
+    all_digits = re.sub(r'\D', '', phone_without_ext)
+    
+    # Если цифр больше 10, возможно, это добавочный прилип к основному номеру
+    if len(all_digits) > 11:
+        # Пробуем найти 10-11 цифр подряд (основной номер)
+        main_match = re.search(r'\d{10,11}', phone_without_ext)
+        if main_match:
+            all_digits = main_match.group(0)
     
     # Форматируем номер
-    if len(digits) >= 10:
+    if len(all_digits) >= 10:
         # Берем последние 10 цифр для основного номера
-        main_digits = digits[-10:]
+        main_digits = all_digits[-10:]
         formatted = f"+7({main_digits[:3]}){main_digits[3:6]}-{main_digits[6:8]}-{main_digits[8:]}"
         return formatted + ext
     else:
+        # Если номер не удалось распознать, возвращаем как есть
         return phone
-
 # Основная логика обработки
 header = contacts_list[0]
 contacts_processed = [header]
