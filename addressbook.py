@@ -28,52 +28,63 @@ def process_phone(phone):
     if not phone:
         return ""
     
-    # Ищем добавочный номер в ЛЮБОМ виде
+    # Сохраняем исходный номер для отладки
+    original_phone = phone
+    
+    # Ищем добавочный номер ТОЛЬКО если есть явный маркер (доб., д., ext.)
     ext = ""
     phone_without_ext = phone
     
-    # Расширенный поиск добавочного номера
-    ext_patterns = [
-        r'(доб\.?\s*)(\d+)',  # доб.1234 или доб 1234
-        r'(д\.?\s*)(\d+)',    # д.1234 или д 1234
-        r'(ext\.?\s*)(\d+)',  # ext.1234
-        r'(\d+)(?=\s*$)'      # цифры в конце строки (может быть добавочный)
-    ]
+    # Проверяем наличие добавочного номера только с явными маркерами
+    ext_match = re.search(r'(доб\.?\s*|д\.?\s*|ext\.?\s*)(\d+)', phone, re.IGNORECASE)
+    if ext_match:
+        ext = f" доб.{ext_match.group(2)}"
+        # Удаляем часть с добавочным номером (включая возможные запятые и пробелы)
+        phone_without_ext = re.sub(
+            r'[\s,\(\)]*?(?:доб\.?\s*|д\.?\s*|ext\.?\s*)\d+', 
+            '', 
+            phone, 
+            flags=re.IGNORECASE
+        )
     
-    for pattern in ext_patterns:
-        ext_match = re.search(pattern, phone, re.IGNORECASE)
-        if ext_match:
-            # Если это последний паттерн - проверяем, что это действительно добавочный
-            if pattern == r'(\d+)(?=\s*$)' and len(ext_match.group(1)) <= 4:
-                ext = f" доб.{ext_match.group(1)}"
-                # Удаляем эти цифры из конца строки
-                phone_without_ext = re.sub(r'\d+\s*$', '', phone)
-                break
-            elif pattern != r'(\d+)(?=\s*$)':
-                ext = f" доб.{ext_match.group(2)}"
-                # Удаляем ВСЮ часть с добавочным номером
-                phone_without_ext = re.sub(r'[\s,\(\)]*доб\.?\s*\d+|[\s,\(\)]*д\.?\s*\d+|[\s,\(\)]*ext\.?\s*\d+', '', phone, flags=re.IGNORECASE)
-                break
+    # Очищаем номер от лишних символов, но сохраняем цифры
+    # Убираем всё, кроме цифр и знака +
+    clean_phone = re.sub(r'[^\d+]', '', phone_without_ext)
     
-    # Извлекаем ВСЕ цифры из оставшейся части
-    all_digits = re.sub(r'\D', '', phone_without_ext)
+    # Если номер начинается с 8, заменяем на +7
+    if clean_phone.startswith('8'):
+        clean_phone = '+7' + clean_phone[1:]
+    # Если номер начинается с 7, добавляем +
+    elif clean_phone.startswith('7'):
+        clean_phone = '+' + clean_phone
+    # Если номер не содержит +, но содержит 10 цифр, добавляем +7
+    elif len(re.sub(r'\D', '', clean_phone)) == 10:
+        clean_phone = '+7' + re.sub(r'\D', '', clean_phone)
     
-    # Если цифр больше 10, возможно, это добавочный прилип к основному номеру
-    if len(all_digits) > 11:
-        # Пробуем найти 10-11 цифр подряд (основной номер)
-        main_match = re.search(r'\d{10,11}', phone_without_ext)
-        if main_match:
-            all_digits = main_match.group(0)
+    # Извлекаем все цифры (уже без добавочного номера)
+    digits = re.sub(r'\D', '', clean_phone)
     
-    # Форматируем номер
-    if len(all_digits) >= 10:
-        # Берем последние 10 цифр для основного номера
-        main_digits = all_digits[-10:]
-        formatted = f"+7({main_digits[:3]}){main_digits[3:6]}-{main_digits[6:8]}-{main_digits[8:]}"
+    # Если есть код страны (11 цифр с 7 или 8), убираем его для форматирования
+    if len(digits) == 11 and (digits.startswith('7') or digits.startswith('8')):
+        digits = digits[1:]  # Убираем первую цифру (7 или 8)
+    
+    # Форматируем номер, если есть 10 цифр
+    if len(digits) == 10:
+        formatted = f"+7({digits[:3]}){digits[3:6]}-{digits[6:8]}-{digits[8:]}"
         return formatted + ext
     else:
-        # Если номер не удалось распознать, возвращаем как есть
-        return phone
+        # Если не удалось распознать, возвращаем с добавленным добавочным (если был)
+        return phone_without_ext + ext
+
+
+# Функция process_names остается без изменений
+def process_names(contact):
+    """Обработка ФИО с использованием регулярных выражений"""
+    name_parts = " ".join(contact[:3]).strip()
+    names = re.findall(r'[А-ЯЁ][а-яё]+', name_parts)
+    while len(names) < 3:
+        names.append("")
+    return names + contact[3:]
 # Основная логика обработки
 header = contacts_list[0]
 contacts_processed = [header]
